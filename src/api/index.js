@@ -1,11 +1,14 @@
 import { Router } from 'express';
 import stripelib from 'stripe';
+import fetch from 'node-fetch';
 import { version } from '../../package.json';
-// import facets from './facets';
 
-const stripe = stripelib('sk_test_N8AonzX1pB2Ip6TFOhU1xMRw');
+const mySecretKey = 'sk_test_Gllo6dtbIl8Qfs0yWsDWh7bB';
+const stripeClientId = 'ca_EbQS52pNK45mz7acUoP9AXHs4kxgLS0P';
 
-const timeout = ms => new Promise(res => setTimeout(res, ms))
+const stripe = stripelib(mySecretKey);
+
+const timeout = ms => new Promise(res => setTimeout(res, ms));
 
 export default ({ config, db }) => {
   let api = Router();
@@ -13,11 +16,9 @@ export default ({ config, db }) => {
   // mount the facets resource
 
   // perhaps expose some API metadata at the root
-  api.get('/', (req, res) => {
-    res.json({ version });
-  });
-
-  // const charge = async () => {}
+  // api.get('/', (req, res) => {
+  //   res.json({ version });
+  // });
 
   const chargeNow = async (token) => {
     console.log('before charge');
@@ -123,6 +124,62 @@ export default ({ config, db }) => {
     });
     await chargeCustomer(token);
     res.json({ success: true });
+  });
+
+  api.get('/connectresult', async (req, res) => {
+    console.log({query: req.query});
+    const {scope, code, error, error_description } = req.query;
+
+    const oauthUrl =`https://connect.stripe.com/oauth/token?client_secret=${mySecretKey}&code=${code}&grant_type=authorization_code`;
+    const response = await fetch(oauthUrl, {
+      method: "POST",
+      // headers: {"Content-Type": "application/json"},
+      // body: JSON.stringify({stripeToken: token.id})
+    })
+    .then(resp => resp.json());
+
+    console.log({
+      now: new Date(),
+      // req,
+      data: response,
+    });
+
+    res.json({ connected: true });
+  });
+
+  api.post('/deauthorize', async (req, res) => {
+    console.log('deauthorize');
+    console.log({body: req.body});
+    const { target } = req.body;
+
+    const deauthUrl =`https://connect.stripe.com/oauth/deauthorize`;
+    const response = await fetch(deauthUrl, {
+      method: "POST",
+      body: JSON.stringify({
+        client_id: stripeClientId,
+        stripe_user_id: target,
+      }),
+      headers: {
+        'Authorization': `Bearer ${mySecretKey}`,
+        'Content-Type': 'application/json',
+      },
+    })
+    .then(resp => resp.json());
+
+    console.log({
+      now: new Date(),
+      // req,
+      data: response,
+    });
+
+    res.json({ connected: true });
+  });
+
+  api.post('/events', async (req, res) => {
+    console.log('events');
+    console.log({body: req.body});
+
+    res.json({ connected: true });
   });
 
   return api;
